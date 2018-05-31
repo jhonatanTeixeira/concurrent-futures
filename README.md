@@ -8,6 +8,12 @@ in a simple and robust solution.
 * pcntl
 * cli SAPI
 
+## Instalation
+
+```
+$ composer require vox/concurrent-futures
+```
+
 ## Usage
 
 ```php
