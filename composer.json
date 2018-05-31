@@ -12,6 +12,7 @@
         "psr-4": { "Vox\\Futures\\": "src" }
     },
     "require": {
+        "php": ">=7.1",
         "arara/process": "1.10.0"
     },
     "require-dev": {
