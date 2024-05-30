@@ -1,82 +1,82 @@
 <?php
 
-declare(ticks=1);
-
 namespace Vox\Futures;
-
-use Arara\Process\Action\Callback;
-use Arara\Process\Child;
-use Arara\Process\Control;
-use Arara\Process\Pool;
 
 class ProcessPool implements ProcessPoolInterface
 {
     /**
-     * @var Pool
+     * @var Future[]
      */
-    private $pool;
-    
-    /**
-     * @var Control
-     */
-    private $control;
-    
-    private $blockId;
-    
-    public function __construct($processLimit)
-    {
-        $this->pool    = new Pool($processLimit, true);
-        $this->control = new Control();
-        $this->blockId = time();
-    }
-    
+    private array $futures = [];
+
+    public function __construct(
+        private int $maxProcess = 0,
+        private int $maxWaitSeconds = 10,
+    ) {}
+
     public function submit(callable $callable, ...$callableArgs): FutureInterface
     {
-        $blockId = ++$this->blockId;
-        
-        $wrapper = function () use ($blockId, $callable, $callableArgs) {
-            $block = new SharedMemory($blockId);
-            $result = $callable(...$callableArgs);
-            $block->write($result);
-        };
-        
-        $callback = new Callback($wrapper);
-        $child    = new Child($callback, $this->control);
-        $future   = new Future(new SharedMemory($blockId), $child);
-        
-        $this->pool->attach($child);
-        
+        $waitSeconds = $this->maxWaitSeconds;
+
+        while (
+            $this->maxProcess > 0 
+            && count($this->getRunningProcesses()) >= $this->maxProcess 
+            && $waitSeconds--
+        ) {
+            sleep(1);
+        }
+
+        $this->futures[] = $future = new Future($callable, ...$callableArgs);
+
         return $future;
     }
     
     public function map(callable $callable, iterable $data): iterable
     {
         $futures = [];
-        
+
         foreach ($data as $item) {
             $futures[] = $this->submit($callable, $item);
         }
-        
+
         return $futures;
     }
     
     public function shutdown(bool $wait = true)
     {
-        if ($wait) {
-            return $this->pool->terminate();
+        if (!$wait) {
+            array_walk($this->futures, fn($f) => $f->cancel());
+        } else {
+            while ($this->hasRunningProcesses()) {
+                sleep(1);
+            }
         }
-        
-        return $this->pool->kill();
-    }
 
-    public function wait(FutureInterface ...$futures): iterable
+        $this->futures = [];
+    }
+    
+    public function wait(FutureInterface | callable ...$futures)
     {
         $results = [];
-        
+
         foreach ($futures as $future) {
+            if (is_callable($future)) {
+                $future = $this->submit($future);
+            }
+
             $results[] = $future->result();
         }
-        
-        return $results;
+
+        return count($results) > 1 ? $results : $results[0];
+    }
+
+    private function getRunningProcesses()
+    {
+        return $this->futures = array_filter($this->futures, fn($f) => !$f->done());
+    }
+
+    public function hasRunningProcesses(): bool
+    {
+        return count($this->getRunningProcesses()) > 0;
     }
 }

@@ -12,5 +12,5 @@ interface FutureInterface
     
     public function done(): bool;
     
-    public function result();
+    public function result(int $timeout = null);
 }

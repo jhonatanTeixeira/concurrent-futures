@@ -13,5 +13,7 @@ interface ProcessPoolInterface
     
     public function shutdown(bool $wait = true);
     
-    public function wait(FutureInterface ...$futures): iterable;
+    public function wait(FutureInterface | callable ...$futures);
+
+    public function hasRunningProcesses(): bool;
 }
