@@ -34,11 +34,10 @@ class Future implements FutureInterface
 
         pcntl_async_signals(true);
         pcntl_signal(SIGCHLD, function () {
-            pcntl_wait($status, WUNTRACED);
+            pcntl_waitpid($this->pid, $this->status, WUNTRACED);
 
             $this->isRunning = false;
             $this->isDone = true;
-            $this->status = $status;
         });
 
         $pid = pcntl_fork();
